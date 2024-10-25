@@ -1,0 +1,54 @@
+---
+# Cloud version for cloud-init setup 
+box: rockylinux/8/cloud 
+
+# network domain
+domain: tdp
+
+# Cluster VMs' ip, hostname, domain, cpus and memory (generates VM deployment config)
+hosts:
+  - cpus: 2
+    groups:
+      - edge
+    hostname: edge-01
+    ip: 192.168.56.10
+    memory: 2048
+  - cpus: 3
+    groups:
+      - master
+      - master1
+    hostname: master-01
+    ip: 192.168.56.11
+    memory: 3072
+  - cpus: 3
+    groups:
+      - master
+      - master2
+    hostname: master-02
+    ip: 192.168.56.12
+    memory: 3072
+  - cpus: 3
+    groups:
+      - master
+      - master3
+    hostname: master-03
+    ip: 192.168.56.13
+    memory: 3072
+  - cpus: 2
+    groups:
+      - worker
+    hostname: worker-01
+    ip: 192.168.56.14
+    memory: 2048
+  - cpus: 2
+    groups:
+      - worker
+    hostname: worker-02
+    ip: 192.168.56.15
+    memory: 2048
+  - cpus: 2
+    groups:
+      - worker
+    hostname: worker-03
+    ip: 192.168.56.16
+    memory: 2048
