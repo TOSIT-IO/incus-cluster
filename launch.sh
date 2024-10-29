@@ -2,35 +2,26 @@
 
 cd "$(dirname "$0")"
 
-#customizable variables
-network=lxdbr0
-file=incus.yml
-user=incus
-hostfile="$TDP_HOME/tdp-getting-started/inventory/hosts.ini"
-storagedir=`pwd`/data
-privatekey=${storagedir}/incus_key
+# Get customized variables
+source .env
 
 #variables extracted from incus config file
-image=`yq '.box' $file | sed 's/"//g'`
-hostnum=`yq '.hosts | length' $file | sed 's/"//g'`
-domain=`yq '.domain' $file | sed 's/"//g'`
-#Read IP of first host
-IFS=. read -r i1 i2 i3 i4 <<< `yq ".hosts[0].ip" $file | sed 's/"//g'`
-# apply mask 255.255.255.0 (/24) for network
-iprange="$((i1 & 255)).$((i2 & 255)).$((i3 & 255)).$((i4 & 0))"
+image=$(jq '.box' $file | sed 's/"//g')
+hostnum=$(jq '.hosts | length' $file | sed 's/"//g')
+domain=$(jq '.domain' $file | sed 's/"//g')
 
 declare -A groups;
 
 # check lxdbr0 network exists and is a bridge
 if ! incus network list | grep $network | grep bridge ; then
-	incus network create $network "ipv4.address=${iprange}/24" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
+	incus network create $network "ipv4.address=${iprange}" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
 fi
 
 # unless tdp storage exists
-if ! incus storage list | grep tdp; then
+if ! incus storage list | grep $storagepool; then
   #create local dir storage
 	mkdir -p $storagedir
-	incus storage create tdp dir source=$storagedir
+	incus storage create $storagepool dir source=$storagedir
 fi
 
 yes | ssh-keygen -t rsa -b 4096 -f $privatekey -N ''
@@ -47,7 +38,7 @@ for f in `seq 0 $((hostnum - 1))`; do
 	for i in `yq ".hosts[$f].groups[]" $file | sed 's/"//g'`; do
         groups[$i]="${groups[$i]}\n$name"
     done;
-    echo "$name ansible_ssh_host=$ip ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='$privatekey' ip=$ip domain=$domain" >> ${hostfile}.tmp
+    echo "$name ansible_ssh_host=$ip ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='tdp-incus/$privatekey' ip=$ip domain=$domain" >> ${hostfile}.tmp
     incus launch images:$image $name --vm <<-EOF
 config:
   limits.memory: ${memory}MB
