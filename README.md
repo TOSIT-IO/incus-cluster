@@ -6,7 +6,7 @@ Launch a fully-featured virtual TDP Hadoop cluster with a single command _or_ cu
 
 - incus
 - openssh
-- yq
+- jq
 
 Incus will provide qemu VM through libvirt currently
 
