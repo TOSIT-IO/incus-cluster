@@ -6,9 +6,11 @@ cd "$(dirname "$0")"
 source .env
 
 # Delete the VMs
-for f in edge-01 master-01 master-02 master-03 worker-01 worker-02 worker-03; do
-	echo "Deleting VM $f"
-	incus delete $f --force
+hostnum=$(jq '.hosts | length' $file | sed 's/"//g')
+for f in $(seq 0 $((hostnum - 1))); do
+	name=$(jq ".hosts[$f].hostname" $file | sed 's/"//g')
+	echo "Deleting VM $name"
+	incus delete $name --force
 done
 
 # Delete storage pool and network 
