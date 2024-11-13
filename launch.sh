@@ -19,7 +19,7 @@ fi
 
 # unless tdp storage exists
 if ! incus storage list | grep $storagepool; then
-  #create local dir storage
+    #create local dir storage
 	mkdir -p $storagedir
 	incus storage create $storagepool dir source=$storagedir
 fi
@@ -43,6 +43,7 @@ for f in $(seq 0 $((hostnum - 1))); do
 config:
   limits.memory: ${memory}MB
   limits.cpu: ${cpu}
+  user.tdp-groups: $(jq -r ".hosts[$f].groups | @csv" $file | tr -d '"')
   user.user-data: |
     #cloud-config
     fqdn: ${name}.${domain}
@@ -95,7 +96,7 @@ done;
 
 echo >> ${hostfile}.tmp
 for key in "${!groups[@]}"; do
-  echo -e "[$key]${groups[$key]}\n" >> ${hostfile}.tmp
+    echo -e "[$key]${groups[$key]}\n" >> ${hostfile}.tmp
 done
 
 #when finished, replace host file by tmp version
