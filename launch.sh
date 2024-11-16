@@ -38,7 +38,7 @@ for f in $(seq 0 $((hostnum - 1))); do
 	for i in $(jq ".hosts[$f].groups[]" $file | sed 's/"//g'); do
         groups[$i]="${groups[$i]}\n$name"
     done;
-    echo "$name ansible_ssh_host=$ip ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='tdp-incus/$privatekey' ip=$ip domain=$domain" >> ${hostfile}.tmp
+    echo "$name ansible_ssh_host=$ip ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='$privatekey' ip=$ip domain=$domain" >> ${hostfile}.tmp
     incus launch images:$image $name --vm <<-EOF
 config:
   limits.memory: ${memory}MB
