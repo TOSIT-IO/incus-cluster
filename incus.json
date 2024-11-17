@@ -9,7 +9,7 @@
       ],
       "hostname": "edge-01",
       "ip": "192.168.56.10",
-      "memory": 2048
+      "memory": 4096 
     },
     {
       "cpus": 3,
@@ -19,7 +19,7 @@
       ],
       "hostname": "master-01",
       "ip": "192.168.56.11",
-      "memory": 4096
+      "memory": 6144
     },
     {
       "cpus": 3,
@@ -29,7 +29,7 @@
       ],
       "hostname": "master-02",
       "ip": "192.168.56.12",
-      "memory": 5120
+      "memory": 6144
     },
     {
       "cpus": 3,
@@ -39,7 +39,7 @@
       ],
       "hostname": "master-03",
       "ip": "192.168.56.13",
-      "memory": 5120
+      "memory": 6144
     },
     {
       "cpus": 2,
@@ -48,7 +48,7 @@
       ],
       "hostname": "worker-01",
       "ip": "192.168.56.14",
-      "memory": 2048
+      "memory": 3072
     },
     {
       "cpus": 2,
@@ -57,7 +57,7 @@
       ],
       "hostname": "worker-02",
       "ip": "192.168.56.15",
-      "memory": 2048
+      "memory": 3072
     },
     {
       "cpus": 2,
@@ -66,7 +66,7 @@
       ],
       "hostname": "worker-03",
       "ip": "192.168.56.16",
-      "memory": 2048
+      "memory": 3072
     }
   ]
 }
