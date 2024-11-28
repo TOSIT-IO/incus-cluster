@@ -5,6 +5,12 @@ cd "$(dirname "$0")"
 # Get customized variables
 source .env
 
+
+#Use incus project to namespace cluster
+project=$(jq ".project" $file | sed 's/"//g')
+
+incus project switch $project
+
 # Delete the VMs
 hostnum=$(jq '.hosts | length' $file | sed 's/"//g')
 for f in $(seq 0 $((hostnum - 1))); do
@@ -13,6 +19,10 @@ for f in $(seq 0 $((hostnum - 1))); do
 	incus delete $name --force
 done
 
-# Delete storage pool and network 
+# Delete storage pool and network
 incus storage delete $storagepool
 incus network delete $network
+
+
+# Do not drop project, it’s not empty
+#incus project delete $project

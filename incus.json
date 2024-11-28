@@ -1,6 +1,7 @@
 {
   "box": "rockylinux/8/cloud",
   "domain": "tdp",
+  "project": "tdp",
   "hosts": [
     {
       "cpus": 2,
