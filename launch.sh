@@ -64,9 +64,17 @@ config:
     package_upgrade: true
     package_reboot_if_required: true
     packages:
+      - firewalld
       - openssh-server
       - vim
     write_files:
+      - path: /etc/cloud/templates/hosts.redhat.tmpl
+        content: |
+          127.0.0.1 localhost.localdomain localhost
+          127.0.0.1 localhost4.localdomain4 localhost4
+
+          ::1 localhost.localdomain localhost
+          ::1 localhost6.localdomain6 localhost6
       - path: /etc/ssh/sshd_config
         content: |
           # Set UsePAM to ssh on passwd-less account
