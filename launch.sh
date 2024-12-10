@@ -64,6 +64,7 @@ config:
     package_upgrade: true
     package_reboot_if_required: true
     packages:
+      - chrony
       - firewalld
       - openssh-server
       - vim
