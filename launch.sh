@@ -22,8 +22,42 @@ incus project switch $project
 
 # check lxdbr0 network exists and is a bridge
 if ! incus network list | grep $network | grep bridge ; then
-	incus network create $network "ipv4.address=${iprange}" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
+    incus network create $network "ipv4.address=${iprange}" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
 fi
+
+incus profile edit default <<-EOF
+config: {}
+description: Default Incus profile
+devices:
+  agent:
+    type: disk
+    source: agent:config
+  enp5s0:
+    name: enp5s0
+    nictype: bridged
+    parent: $network
+    type: nic
+  root:
+    path: /
+    pool: tdp
+    size: 50GB
+    type: disk
+name: default
+EOF
+
+if ! incus profile list | grep cloud ; then
+    incus profile create cloud
+fi
+
+incus profile edit cloud <<-EOF
+config: {}
+description: Cloud-init Incus profile
+devices:
+  cloud-init:
+    type: disk
+    source: cloud-init:config
+name: cloud
+EOF
 
 mkdir -p $datadir
 yes | ssh-keygen -t rsa -b 4096 -f $privatekey -N ''
@@ -40,22 +74,49 @@ fi
 #foreach hostnum
 for f in $(seq 0 $((hostnum - 1))); do
     # parse json file to get host config
-    name=$(jq ".hosts[$f].hostname" $file | sed 's/"//g')
-	memory=$(jq ".hosts[$f].memory" $file)
-	cpu=$(jq ".hosts[$f].cpus" $file)
-	ip=$(jq ".hosts[$f].ip" $file | sed 's/"//g')
-	for i in $(jq ".hosts[$f].groups[]" $file | sed 's/"//g'); do
-       #Append host to group multiline string array
-	   groups[$i]="${groups[$i]}\n$name"
-    done;
-    # add host to inventory
-    echo "$name ansible_ssh_host=$ip ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='$privatekey' ip=$ip domain=$domain" >> ${hostfile}.tmp
-    # launch host with following configuration
-    incus launch images:$image $name --vm <<-EOF
+    hostname=$(jq ".hosts[$f].hostname" $file | sed 's/"//g')
+    memory=$(jq ".hosts[$f].memory" $file)
+    cpu=$(jq ".hosts[$f].cpus" $file)
+    quantity=$(jq ".hosts[$f].quantity" $file | sed 's/"//g')
+    role=$(jq ".hosts[$f].role" $file | sed 's/"//g')
+    gr=$(jq ".hosts[$f].groups[]" $file 2>/dev/null | sed 's/"//g')
+    echo hostname $hostname mem $memory cpu $cpu quantity $quantity role $role gr $(IFS=','; echo "${gr[*]}"; unset IFS)
+    if [ -z "$memory" ] || [ -z "$cpu" ] || [ -z "$role" ]; then
+        echo 'memory, cpu, and role are mandatory vars'
+	exit 1;
+    fi
+    if [[ "$quantity" == "null" ]]; then
+       quantity=1
+    fi
+    if [ ${#gr[@]} -eq 0 ] || [[ ${gr[0]} == "" ]]; then
+        declare -A gr;
+        gr[0]="$role"
+    fi
+    if [ "$quantity" -gt 1 ]; then
+        if [ "$hostname" != "null" ]; then
+            echo "Cannot have both quantity > 1 ($quantity) and hostname specified ($hostname)"
+            exit 1;
+        fi
+    fi
+    for i in $(seq 1 $quantity); do
+        if [[ "$hostname" == "null" ]]; then
+            name=$(printf "%s-%02d" "$role" "$i")
+        else
+            name=$hostname
+        fi
+        for g in ${gr[@]}; do
+            echo "Add $name to group $g"
+            #Append host to group multiline string array
+            groups[$g]="${groups[$g]}\n$name"
+        done;
+        # add host to inventory
+        echo "$name ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='$privatekey' domain=$domain" >> ${hostfile}.tmp
+        # launch host with following configuration
+        incus launch images:$image $name --vm <<-EOF
 config:
   limits.memory: ${memory}MB
-  limits.cpu: ${cpu}
-  user.tdp-groups: $(jq -r ".hosts[$f].groups | @csv" $file | tr -d '"')
+  #limits.cpu: ${cpu}
+  user.tdp-groups: "$(IFS=','; echo "${gr[*]}"; unset IFS)"
   user.user-data: |
     #cloud-config
     fqdn: ${name}.${domain}
@@ -91,28 +152,13 @@ config:
         ssh-authorized-keys:
           - $(cat $privatekey.pub)
         shell: /bin/bash
-devices:
-  root:
-    path: /
-    pool: tdp
-    size: 50GB
-    type: disk
-  cloud-init:
-    type: disk
-    source: cloud-init:config
-  agent:
-    type: disk
-    source: agent:config
-  enp5s0:
-    ipv4.address: ${ip}
-    nictype: bridged
-    parent: $network
-    type: nic
 name: $name
 architecture: x86_64
 profiles:
   - default
+  - cloud
 EOF
+    done;
 done;
 
 echo >> ${hostfile}.tmp
