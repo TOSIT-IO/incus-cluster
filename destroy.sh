@@ -33,6 +33,8 @@ for h in $(seq 0 $((hostnum - 1))); do
 done
 
 # Delete storage pool and network
+incus profile device remove default enp5s0 --project tdp
+incus profile device remove default root --project tdp
 incus storage delete $storagepool
 incus network delete $network
 
