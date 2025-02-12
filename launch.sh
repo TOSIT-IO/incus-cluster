@@ -110,7 +110,7 @@ for f in $(seq 0 $((hostnum - 1))); do
             groups[$g]="${groups[$g]}\n$name"
         done;
         # add host to inventory
-        echo "$name ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='$privatekey' domain=$domain" >> ${hostfile}.tmp
+        echo "$name ansible_ssh_host=$name.$domain ansible_ssh_port=22 ansible_ssh_user='$user' ansible_ssh_private_key_file='$privatekey' domain=$domain" >> ${hostfile}.tmp
         # launch host with following configuration
         incus launch images:$image $name --vm <<-EOF
 config:
