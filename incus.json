@@ -1,7 +1,38 @@
 {
-  "box": "rockylinux/8/cloud",
-  "domain": "tdp",
   "project": "tdp",
+  "image": "rockylinux/8/cloud",
+  "admin_user": "incus",
+  "network": {
+    "manage": true,
+    "name": "tdp",
+    "domain": "tdp",
+    "cidr": "192.168.56.1/24"
+  },
+  "storage": {
+    "manage": true,
+    "name": "tdp",
+    "dir": "./pool",
+    "root_size": "40GB"
+  },
+  "profiles": {
+    "master": {
+      "devices": {
+        "data": {
+          "path": "/data",
+          "size": "100GB"
+        }
+      }
+    },
+    "worker": {
+      "devices": {
+        "data": {
+          "path": "/data",
+          "size": "100GB"
+        }
+      }
+    }
+  },
+  "output_dir": "../tdp-getting-started",
   "hosts": [
     {
       "role": "edge",
@@ -34,7 +65,8 @@
       "role": "worker",
       "cpus": 2,
       "memory": 3072,
-      "quantity": 3
+      "quantity": 3,
+      "profiles": ["worker"]
     }
   ]
 }

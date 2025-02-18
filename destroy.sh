@@ -2,22 +2,16 @@
 
 cd "$(dirname "$0")"
 
-# Get customized variables
-source .env
-
-
-#Use incus project to namespace cluster
-project=$(jq ".project" $file | sed 's/"//g')
+source ./source.sh
 
 incus project switch $project
 
 # Delete the VMs
-hostnum=$(jq '.hosts | length' $file | sed 's/"//g')
-for h in $(seq 0 $((hostnum - 1))); do
-    name=$(jq ".hosts[$h].hostname" $file | sed 's/"//g')
+for h in $(seq 0 $((hosts_num - 1))); do
+    name=$(parseconf ".hosts[$h].hostname")
     if [[ "$name" == "null" ]]; then
-	role=$(jq ".hosts[$h].role" $file | sed 's/"//g');
-	qty=$(jq ".hosts[$h].quantity" $file | sed 's/"//g');
+    	role=$(parseconf ".hosts[$h].role");
+    	qty=$(parseconf ".hosts[$h].quantity");
         if [[ "qty" == "null" ]]; then
             qty=1
         fi
@@ -33,11 +27,11 @@ for h in $(seq 0 $((hostnum - 1))); do
 done
 
 # Delete storage pool and network
-incus profile device remove default enp5s0 --project tdp
-incus profile device remove default root --project tdp
+incus profile device remove default enp5s0
+incus profile device remove default root
 incus storage delete $storagepool
+incus storage delete $storage
 incus network delete $network
-
 
 # Do not drop project, it’s not empty (image)
 #incus project delete $project
