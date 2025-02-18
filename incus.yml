@@ -10,7 +10,7 @@ network:
   manage: true
   name: tdp
   domain: tdp
-  cidr: 192.168.56.1/24
+  cidr: 10.10.10.1/24
 storage:
   # skip network creation if false
   manage: true
