@@ -147,7 +147,7 @@ for f in $(seq 0 $((hosts_num - 1))); do
             groups[$g]="${groups[$g]}\n$name"
         done;
         # add host to inventory
-        echo "$name ansible_ssh_host=$name.$domain ansible_ssh_port=22 ansible_ssh_user='$admin_user' ansible_ssh_private_key_file='$privatekey' domain=$domain" >> ${ansible_hosts_file}.tmp
+        echo "$name ansible_ssh_host=$name.$domain ansible_ssh_user='$admin_user' domain=$domain" >> ${ansible_hosts_file}.tmp
         # launch host with following configuration
         incus launch images:$image $name --vm <<-EOF
 config:
@@ -206,5 +206,5 @@ done
 
 #when finished, replace host file by tmp version
 echo 'Write finalized ansible hosts.ini file'
-mv ${ansible_hosts_file}.tmp ${host_file}
+mv ${ansible_hosts_file}.tmp ${ansible_hosts_file}
 echo 'Finished successfully!'

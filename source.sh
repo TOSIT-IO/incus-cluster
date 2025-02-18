@@ -75,4 +75,4 @@ profiles_num=$(parseconf '.profiles | length')
 # output dir
 output_dir=`realpath $(parseconf '.output_dir // "../tdp-getting-started"')`
 ansible_hosts_file="${output_dir}/inventory/hosts.ini"
-private_key="$output_dir/incus_key";
+private_key="$output_dir/files/tdp-rsa";
