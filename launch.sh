@@ -167,7 +167,9 @@ config:
       - chrony
       - firewalld
       - openssh-server
+      - tar
       - vim
+      - unzip
     write_files:
       - path: /etc/cloud/templates/hosts.redhat.tmpl
         content: |
