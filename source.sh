@@ -13,7 +13,6 @@ if ! command -v incus  &>/dev/null; then
     requires 'incus'
 fi
 if command -v yq &>/dev/null; then
-    echo 'yq is available'
     _yq=yq
 elif [ -x './yq' ]; then
     _yq='./yq'

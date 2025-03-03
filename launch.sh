@@ -166,6 +166,7 @@ config:
     packages:
       - chrony
       - firewalld
+      - gzip
       - openssh-server
       - tar
       - vim
