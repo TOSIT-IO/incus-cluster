@@ -8,6 +8,11 @@ if [ ! -d "${output_dir}/inventory" ]; then
     error "${output_dir} is not a valid tdp project directory. Please initialize a TDP project at that path, or override 'output_dir'"
 fi
 
+
+if ! incus info > /dev/null ; then
+    exit 1;
+fi
+
 #associative array (map)
 declare -A groups;
 #non-associative array (list)
