@@ -1,17 +1,10 @@
-#!/bin/sh
+#!/bin/bash
 
 error(){
     echo "$@" >&2;
     exit 1;
 }
 
-requires(){
-    error "This script requires $1 to run, please install"
-}
-
-if ! command -v incus  &>/dev/null; then
-    requires 'incus'
-fi
 if command -v yq &>/dev/null; then
     _yq=yq
 elif [ -x './yq' ]; then
@@ -46,25 +39,37 @@ else
         fi
     else
         "Do not install. Quitting..."
+        exit 1
     fi
 fi
 
+config_file=$1
+if [[ -z "${config_file}" ]]; then
+    config_file='./incus.yml'
+fi
+
+if [[ ! -f ${config_file} ]]; then
+    echo "Config file (${config_file}) not found. Quitting…"
+    exit 1
+fi
+
 parseconf(){
-    ${_yq} "${1}" incus.yml | sed 's/"\(.*\)"/\1/g'
+    ${_yq} "${1}" $config_file | sed 's/"\(.*\)"/\1/g'
 }
 
 #variables extracted from incus config file
-project=$(parseconf '.project  // "tdp"')
+project=$(parseconf ".project // \"$(basename $PWD)\"")
+echo "coucou '${project}'"
 image=$(parseconf '.image // "rockylinux/8/cloud"')
 hosts_num=$(parseconf '.hosts | length')
-admin_user=$(parseconf '.admin_user  // "tdp"')
+admin_user=$(parseconf '.admin_user  // "admin"')
 
 # Network
-network=$(parseconf '.network.name // "tdp"')
+network=$(parseconf ".network.name // \"${project}br0\"")
 network_manage=$(parseconf '.network.manage // true')
 
 # storage
-storage=$(parseconf '.storage.name // "tdp"')
+storage=$(parseconf ".storage.name // \"$project\"")
 storage_manage=$(parseconf '.storage.manage // true')
 root_size=$(parseconf '.storage.root_size // "40GB"')
 
@@ -72,6 +77,7 @@ root_size=$(parseconf '.storage.root_size // "40GB"')
 profiles_num=$(parseconf '.profiles | length')
 
 # output dir
-output_dir=`realpath $(parseconf '.output_dir // "../tdp-getting-started"')`
-ansible_hosts_file="${output_dir}/inventory/hosts.ini"
-private_key="$output_dir/files/tdp-rsa";
+generate_ansible_inventory=$(parseconf '.generate_ansible_inventory // false')
+ansible_dir=`realpath $(parseconf '.ansible_dir // "./"')`
+ansible_hosts_file=$(parseconf ".ansible_hosts_file // \"${ansible_dir}/inventory/hosts.ini\"")
+private_key=$(parseconf ".ansible_private_key // \"${ansible_dir}/${project}_key\"")

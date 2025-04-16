@@ -8,7 +8,7 @@ admin_user: incus
 network:
   # skip network creation if false
   manage: true
-  name: tdp
+  name: tdpbr0
   domain: tdp
   cidr: 10.10.10.1/24
 storage:
@@ -19,7 +19,8 @@ storage:
   # size of default root partition for all nodes
   root_size: 40GB
 # directory to write ansible hosts file and ssh key
-output_dir: "../tdp-getting-started"
+generate_ansible_inventory: true
+ansible_dir: "../tdp-getting-started"
 hosts:
   # role is used for default name ($role-[0-$quantity])
   # and default group
@@ -29,27 +30,12 @@ hosts:
     # number of instance to create
     quantity: 1
   - role: master
-    cpus: 3
+    cpus: 2
     # override groups to add master1
     groups:
       - master
-      - master1
-    # force hostname, incompatible with qty > 1
-    hostname: master-01
-    memory: 6144
-  - role: master
-    cpus: 3
-    groups:
-      - master
-      - master2
-    hostname: master-02
-    memory: 6144
-  - role: master
-    cpus: 3
-    groups:
-      - master
-      - master3
-    hostname: master-03
+      - master%d
+    quantity: 3
     memory: 6144
   - role: worker
     cpus: 2

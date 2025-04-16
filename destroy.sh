@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 
-cd "$(dirname "$0")"
-
-source ./source.sh
+source  "$(dirname "$0")/incus_source.sh"
 
 incus project switch $project
 
@@ -28,8 +26,6 @@ done
 
 # Delete storage pool and network
 incus profile device remove default enp5s0
-incus profile device remove default root
-incus storage delete $storagepool
 incus storage delete $storage
 incus network delete $network
 
