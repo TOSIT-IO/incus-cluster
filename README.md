@@ -1,41 +1,44 @@
-# TDP Incus
+# Incus cluster
 
-Launch a fully-featured virtual TDP Hadoop cluster with a single command _or_ customize the infrastructure.
+Manage a cluster with Incus.
 
 ## Requirements
 
 - incus
 - openssh
-- jq
+
+## Config file
+
+In your project dir, create incus.yml file
+Example in the project
 
 ## Start Environment
 
 ```bash
 export TDP_HOME=<Path>
-./launch.sh
+./incus-cluster up
 ```
 
 ## Stop Environment
 
 ```bash
-./destroy.sh
+./incus-cluster stop
+```
+
+## Delete Environment
+
+```bash
+./incus-cluster delete
 ```
 
 ## Enter in VM
 
 ```bash
-incus shell edge-01
+incus shell <vm>
 ```
 
 ## Enter using SSH
 
-If machine IPs defined in `/etc/hosts`:
-
 ```bash
-ssh -i data/incus_key incus@edge-01.tdp
-```
-Else:
-
-```bash
-ssh -i data/incus_key incus@192.168.56.10
+ssh -i data/incus_key <admin_user>@<vm>
 ```

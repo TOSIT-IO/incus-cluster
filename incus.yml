@@ -16,8 +16,6 @@ storage:
   manage: true
   name: tdp
   dir: "./pool"
-  # size of default root partition for all nodes
-  root_size: 40GB
 # directory to write ansible hosts file and ssh key
 generate_ansible_inventory: true
 ansible_dir: "../tdp-getting-started"
@@ -41,3 +39,4 @@ hosts:
     cpus: 2
     memory: 3072
     quantity: 3
+    root_size: 50GB
