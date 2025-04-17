@@ -1,0 +1,8 @@
+---
+# incus project
+project: tdp
+hosts:
+  # role is used for default name ($role-[0-$quantity])
+  # and default group
+  - role: edge
+    quantity: 1

@@ -5,41 +5,47 @@ error(){
     exit 1;
 }
 
+if ! incus info > /dev/null ; then
+    echo "Incus is not properly working. Exiting..."
+    exit 1;
+fi
+
 if command -v yq &>/dev/null; then
-    _yq=yq
+    #echo 'yq detected in $PATH'
+    :
 elif [ -x './yq' ]; then
-    _yq='./yq'
+    #echo 'Local yq detected'
+    PATH="$PATH:$PWD"
 else
     read -p "yq not installed. Do you want to install yq? Press Enter to continue (or type 'n' to skip): " answer
     if [[ "${answer}" != "n" ]]; then
         os_type=$(uname -s)
         if [[ "$os_type" == "Darwin" ]]; then
-            echo "MacOS detected. Install with brew"
+            echo "MacOS detected. Install yq with brew"
             brew install yq
         elif [[ "$os_type" == "Linux" ]]; then
             # Check for Arch Linux
             if [[ -f /etc/arch-release ]]; then
+                echo 'Arch Linux detected. Install with pacman'
                 sudo pacman -S yq
             else
-                echo "This is a (non-Arch) Linux distribution."
-                read -p "Download script and install in /usr/local/bin? (Requires sudo) Press n for local install" global
+                echo "Non-Arch Linux detected."
+                read -p "Download script and install in /usr/local/bin (Requires sudo) ? Press n to install in cwd" global
+                #Get latest version
                 version=`curl https://api.github.com/repos/mikefarah/yq/releases/latest | grep '"tag_name":' | cut -d':' -f2 | sed 's/^.*\"\(.*\)\".*$/\1/g'`
                 if [[ "${global}" != "n" ]]; then
                     sudo wget https://github.com/mikefarah/yq/releases/download/${version}/yq_linux_amd64 -O /usr/local/bin/yq && \
                     sudo chmod +x /usr/local/bin/yq
                 else
-                    sudo wget https://github.com/mikefarah/yq/releases/download/${version}/yq_linux_amd64 -O ./yq && \
-                    sudo chmod +x ./yq
-                    _yq='./yq'
+                    wget https://github.com/mikefarah/yq/releases/download/${version}/yq_linux_amd64 -O ./yq && \
+                    PATH="$PATH:$PWD"
                 fi
             fi
         else
-            echo "yq not available and OS cannot be detected. Exiting"
-            exit 1;
+            error "yq not available and OS cannot be detected. Exiting"
         fi
     else
-        "Do not install. Quitting..."
-        exit 1
+        error "Do not install. Quitting..."
     fi
 fi
 
@@ -49,44 +55,49 @@ if [[ -z "${config_file}" ]]; then
 fi
 
 if [[ ! -f ${config_file} ]]; then
-    echo "Config file (${config_file}) not found. Quitting…"
-    exit 1
+    error "Config file (${config_file}) not found. Quitting…"
 fi
 
 parseconf(){
-    ${_yq} "${1}" $config_file | sed 's/"\(.*\)"/\1/g'
+    query=$1
+    default=$2
+    if [[ -n "${default}" ]]; then
+        if [[ ! "$default" =~ ^-?[0-9]+([.][0-9]+)?$ && "$default" != "true" && "$default" != "false" ]]; then
+            default="\"${default}\""
+        fi
+        query="${query} // ${default}"
+    fi
+    yq "${query}" "${config_file}" | sed 's/"\(.*\)"/\1/g'
 }
 
 #variables extracted from incus config file
-project=$(parseconf ".project // \"\"")
+project=$(parseconf ".project")
 
-if [[ -z "${project}" ]]; then
+if [[ "${project}" == "null" ]]; then
     error "'project' config key cannot be empty"
 fi
 
 hosts_num=$(parseconf '.hosts | length')
 
+if [[ "$hosts_num" -lt 1 ]]; then
+    error "Config must have at least one host"
+fi
+
 # Network
-network=$(parseconf ".network.name // \"${project}br0\"")
-network_manage=$(parseconf '.network.manage // true')
+network_manage=$(parseconf '.network.manage' true)
+network=$(parseconf '.network.name' "${project}br0")
 
 # storage
-storage=$(parseconf ".storage.name // \"$project\"")
-storage_manage=$(parseconf '.storage.manage // true')
+storage_manage=$(parseconf '.storage.manage' true)
+storage=$(parseconf '.storage.name' $project)
 
-if ! incus info > /dev/null ; then
-    echo "Incus is not properly working. Exiting..."
-    exit 1;
-fi
+# SSH
+ssh_enabled=$(parseconf '.ssh.enabled' false)
+ssh_key=$(parseconf '.ssh.path' "./${project}_key")
 
-if [[ "${generate_ansible_inventory}" == "true" && ! -d "${ansible_dir}/inventory" ]]; then
-    error "${ansible_dir} has no 'inventory' directory. Please initialize an ansible project at that path, or set 'generate_ansible_inventory' to false"
-fi
-
-#associative array (map)
-declare -A groups;
-#non-associative array (list)
-hosts_list=();
+# Ansible
+ansible_enabled=$(parseconf '.ansible.enabled' false)
+inventory_file=$(parseconf '.ansible.inventory' './inventory/hosts.ini')
 
 # check if project exists
 if ! incus project show $project  &>/dev/null; then
@@ -97,7 +108,7 @@ incus project switch $project >/dev/null
 
 get_hostvar() {
     hostname=$(parseconf ".hosts[$f].hostname")
-    quantity=$(parseconf ".hosts[$f].quantity // 1")
+    quantity=$(parseconf ".hosts[$f].quantity" 1)
     role=$(parseconf ".hosts[$f].role")
 }
 
@@ -115,57 +126,52 @@ get_name() {
     fi
 }
 
-up() {
-image=$(parseconf '.image // "rockylinux/8/cloud"')
-admin_user=$(parseconf '.admin_user  // "admin"')
-generate_ansible_inventory=$(parseconf '.generate_ansible_inventory // false')
-ansible_dir=`realpath $(parseconf '.ansible_dir // "./"')`
-ansible_hosts_file=$(parseconf ".ansible_hosts_file // \"${ansible_dir}/inventory/hosts.ini\"")
-private_key=$(parseconf ".ansible_private_key // \"${ansible_dir}/${project}_key\"")
-
-if [[ "${generate_ansible_inventory}" == "true" ]]; then
-    echo "#Generated by $0" > ${ansible_hosts_file}.tmp
-    echo "" >> ${ansible_hosts_file}.tmp
-    if [ ! -e ${private_key} ]; then
-        echo "Undetected SSH key. Create it at ${private_key}"
-        yes | ssh-keygen -t rsa -b 4096 -f ${private_key} -N ''
-    fi
-fi
-if [ "${network_manage}" == "true" ]; then
-    domain=$(parseconf ".network.domain // \"$project\"")
-    cidr=$(parseconf '.network.cidr // "10.10.10.1/24"')
-    if ! incus network show $network &>/dev/null; then
-        incus network create $network "ipv4.address=${cidr}" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
-        if systemctl is-active --quiet systemd-resolved; then
-            dnsip="${cidr%%/*}"
-            echo "systemd-resolved is active. Configure DNS (${dnsip})"
-            sudo resolvectl dns $network "${dnsip}"
-            sudo resolvectl domain $network "~${domain}"
+init() {
+    if [[ "${ansible_enabled}" == "true" ]]; then
+        if [[ "${ssh_enabled}" == "false" ]]; then
+            error "'.ssh.enabled' cannot be false when 'ansible.enabled' is true"
         else
-            echo "systemd-resolved is not active. You have to configure your DNS resolution to contact nodes from their FQDN"
+            mkdir -p $(dirname "${ssh_key}")
+            if [[ ! -f ${ssh_key} ]]; then
+                echo "Undetected SSH key. Create it at ${ssh_key}"
+                yes | ssh-keygen -t rsa -b 4096 -f ${ssh_key} -N ''
+            fi
+        fi
+        mkdir -p $(dirname "${inventory_file}")
+    fi
+    if [ "${network_manage}" == "true" ]; then
+        domain=$(parseconf ".network.domain // \"$project\"")
+        cidr=$(parseconf '.network.cidr // "10.10.10.1/24"')
+        if ! incus network show $network &>/dev/null; then
+            incus network create $network "ipv4.address=${cidr}" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
+            if systemctl is-active --quiet systemd-resolved; then
+                dnsip="${cidr%%/*}"
+                echo "systemd-resolved is active. Configure DNS (${dnsip})"
+                sudo resolvectl dns $network "${dnsip}"
+                sudo resolvectl domain $network "~${domain}"
+            else
+                echo "systemd-resolved is not active. You have to configure your DNS resolution to contact nodes from their FQDN"
+            fi
+        fi
+    else
+        if ! incus network show $network &>/dev/null; then
+            error "Network ${network} does not exists and set to network_manage=false. Create it manually or set network_manage to true"
+        else
+            domain=$(incus network show ${network} | yq '.config["dns.domain"]')
+            cidr=$(incus network show ${network} | yq '.config["ipv4.address"]')
         fi
     fi
-else
-    if ! incus network show $network &>/dev/null; then
-        error "Network ${network} does not exists and set to network_manage=false. Create it manually or set network_manage to true"
-    else
-        domain=$(incus network show ${network} | ${_yq} '.config["dns.domain"]')
-        cidr=$(incus network show ${network} | ${_yq} '.config["ipv4.address"]')
+    if [[ "${storage_manage}" == "true" ]]; then
+        # unless storage exists
+        if ! incus storage show $storage &>/dev/null; then
+            #create local dir storage
+            storage_dir=`realpath $(parseconf '.storage.dir' './data/pool')`
+            mkdir -p $storage_dir
+           	incus storage create ${storage} dir source=${storage_dir}
+        fi
     fi
-fi
-
-# unless storage exists
-if [[ "${storage_manage}" == "true" ]]; then
-    if ! incus storage show $storage &>/dev/null; then
-        #create local dir storage
-        storage_dir=`realpath $(parseconf '.storage.dir // "./data/pool"')`
-        mkdir -p $storage_dir
-    	incus storage create ${storage} dir source=${storage_dir}
-    fi
-fi
-
-# Default profiles (default)
-incus profile edit default <<-EOF
+    # Default profiles (default)
+    incus profile edit default <<-EOF
 config: {}
 description: Default Incus profile
 devices:
@@ -176,12 +182,12 @@ devices:
     type: nic
 EOF
 
-if ! incus profile show vm &>/dev/null; then
-    incus profile create vm
-fi
+    if ! incus profile show vm &>/dev/null; then
+        incus profile create vm
+    fi
 
-#VM-only configuration
-incus profile edit vm <<-EOF
+    #VM-only configuration
+    incus profile edit vm <<-EOF
 config: {}
 description: VM profile
 devices:
@@ -190,12 +196,12 @@ devices:
     source: agent:config
 EOF
 
-if ! incus profile show cloud  &>/dev/null; then
-    incus profile create cloud
-fi
+    if ! incus profile show cloud  &>/dev/null; then
+        incus profile create cloud
+    fi
 
-#Cloud-init only VM configuration
-incus profile edit cloud <<-EOF
+    #Cloud-init only VM configuration
+    incus profile edit cloud <<-EOF
 config: {}
 description: Cloud-init profile
 devices:
@@ -204,44 +210,60 @@ devices:
     source: cloud-init:config
 name: cloud
 EOF
+}
 
-#foreach hosts_num
-for f in $(seq 0 $((hosts_num - 1))); do
-    get_hostvar
-    # parse config file to get host config
-    memory=$(parseconf ".hosts[$f].memory // 512")
-    cpu=$(parseconf ".hosts[$f].cpus // 1")
-    root_size=$(parseconf ".hosts[$f].root_size // \"40GB\"")
-    if ${_yq} -e ".hosts[$f].groups" ${config_file} &> /dev/null; then
-        mapfile -t gr < <(parseconf ".hosts[$f].groups[]" 2>/dev/null)
-    else
-        if [[ "$role" == "null" ]]; then
-            error "host #${f} has no groups nor role. Quitting…"
-        fi
-        gr=("$role")
+up() {
+    init
+    #associative array (map)
+    declare -A groups;
+    #non-associative array (list)
+    hosts_list=();
+
+    image=$(parseconf '.image' 'rockylinux/8/cloud')
+    admin_user=$(parseconf '.admin_user' 'admin')
+
+    #Start Inventory file
+    if [[ "${ansible_enabled}" == "true" ]]; then
+        echo "#Generated by $0" > ${inventory_file}.tmp
+        echo "" >> ${inventory_file}.tmp
     fi
-    for i in $(seq 1 $quantity); do
-        get_name
-        f_gr=()
-        for j in "${!gr[@]}"; do
-            f_gr[$j]=$(printf ${gr[$j]} "$i")
-        done
-        for g in ${f_gr[@]}; do
-            #Append host to group multiline string array
-            groups[$g]="${groups[$g]}\n$name"
-        done;
-        if [[ "${generate_ansible_inventory}" == true ]]; then
-            # add host to inventory
-            echo "$name ansible_ssh_host=$name.$domain ansible_ssh_user='$admin_user' domain=$domain" >> ${ansible_hosts_file}.tmp
+
+    #foreach hosts_num
+    for f in $(seq 0 $((hosts_num - 1))); do
+        get_hostvar
+        # parse config file to get host config
+        memory=$(parseconf ".hosts[$f].memory // 512")
+        cpu=$(parseconf ".hosts[$f].cpus // 1")
+        root_size=$(parseconf ".hosts[$f].root_size // \"40GB\"")
+        if yq -e ".hosts[$f].groups" ${config_file} &> /dev/null; then
+            mapfile -t gr < <(parseconf ".hosts[$f].groups[]" 2>/dev/null)
+        else
+            if [[ "$role" == "null" ]]; then
+                error "host #${f} has no groups nor role. Quitting…"
+            fi
+            gr=("$role")
         fi
-        hosts_list+=("${name}")
-        # launch host with following configuration
-        incus launch images:$image $name --vm <<-EOF
+        for i in $(seq 1 $quantity); do
+            get_name
+            f_gr=()
+            for j in "${!gr[@]}"; do
+                f_gr[$j]=$(printf ${gr[$j]} "$i")
+            done
+            if [[ "$ansible_enabled" == true ]]; then
+                for g in ${f_gr[@]}; do
+                    #Append host to group multiline string array
+                    groups[$g]="${groups[$g]}\n$name"
+                done;
+                echo "$name ansible_ssh_host=$name.$domain ansible_ssh_user='$admin_user' domain=$domain" >> ${ansible_inventory}.tmp
+            fi
+            hosts_list+=("${name}")
+            # launch host with following configuration
+            incus launch images:$image $name --vm <<-EOF
 architecture: x86_64
 config:
   limits.memory: ${memory}MB
   limits.cpu: ${cpu}
-  user.tdp-groups: "$(IFS=','; echo "${gri[*]}"; unset IFS)"
+  user.tdp-groups: "$(IFS=','; echo "${f_gr[*]}"; unset IFS)"
   user.user-data: |
     #cloud-config
     fqdn: ${name}.${domain}
@@ -278,7 +300,7 @@ config:
       - name: ${admin_user}
         sudo: ALL=(ALL) NOPASSWD:ALL
         ssh-authorized-keys:
-          - $(cat ${private_key}.pub)
+          - $(cat ${ssh_key}.pub)
         shell: /bin/bash
 devices:
   root:
@@ -292,43 +314,56 @@ profiles:
   - cloud
   - vm
 EOF
+        done;
     done;
-done;
 
-if [[ "${generate_ansible_inventory}" == true ]]; then
-    echo -e "\n" >> ${ansible_hosts_file}.tmp
-    for key in "${!groups[@]}"; do
-        # generate ini section of current group (key)
-        echo -e "[$key]${groups[$key]}\n" >> ${ansible_hosts_file}.tmp
-    done
+    if [[ "${ansible_enabled}" == true ]]; then
+        echo -e "\n" >> ${inventory_file}.tmp
+        for key in "${!groups[@]}"; do
+            # generate ini section of current group (key)
+            echo -e "[$key]${groups[$key]}\n" >> ${inventory_file}.tmp
+        done
 
-    #when finished, replace host file by tmp version
-    echo 'Write finalized ansible hosts.ini file'
-    mv ${ansible_hosts_file}.tmp ${ansible_hosts_file}
-fi
-echo 'Waiting completion of cloud-init...'
-echo 'If it hangs indefinitely, you might have network issue inside your VMs'
-for name in "${hosts_list[@]}"; do
-    until incus exec ${name} -- cloud-init status | grep -q "status: done"; do
-        sleep 3
+        #when finished, replace host file by tmp version
+        echo 'Write finalized ansible hosts.ini file'
+        mv ${inventory_file}.tmp ${inventory_file}
+    fi
+    echo 'Waiting completion of cloud-init...'
+    echo 'If it hangs indefinitely, you might have network issue inside your VMs'
+    for name in "${hosts_list[@]}"; do
+        until incus exec ${name} -- cloud-init status | grep -q "status: done"; do
+            sleep 3
+        done
+        echo "$name is ready"
     done
-    echo "$name is ready"
-done
 }
 
 action() {
-for f in $(seq 0 $((hosts_num - 1))); do
-    # parse config file to get host config
-    get_hostvar
-    #echo hostname $hostname mem $memory cpu $cpu quantity $quantity role $role gr $(IFS=','; echo "${gr[*]}"; unset IFS)
-    for i in $(seq 1 $quantity); do
-        get_name
-        incus $@ $name
+    for f in $(seq 0 $((hosts_num - 1))); do
+        # parse config file to get host config
+        get_hostvar
+        #echo hostname $hostname mem $memory cpu $cpu quantity $quantity role $role gr $(IFS=','; echo "${gr[*]}"; unset IFS)
+        for i in $(seq 1 $quantity); do
+            get_name
+            incus $@ $name
+        done
     done
-done
+}
+
+usage() {
+    echo "Usage: $0 [action] [config_file]"
+    echo 'Actions:'
+    echo -e 'help\t\tPrint this usage'
+    echo -e 'init\t\tInit incus project, network, storage, profiles'
+    echo -e 'up\t\tInit then launch VMs'
+    echo -e 'start\t\tStart VMs'
+    echo -e 'stop\t\tStop VMs'
+    echo -e 'delete\t\tDelete VMs and purge project, network, storage, profiles'
 }
 
 case "$1" in
+    help) usage; exit 0;;
+    init) init ;;
     up) up ;;
     start) action start ;;
     stop) action stop ;;
@@ -341,10 +376,7 @@ case "$1" in
             incus network delete $network
         fi
     ;;
-    *)
-        echo "Usage: $0 {up | start | stop | delete} [config_file]"
-        exit 1
-        ;;
+    *) usage; exit 1;;
 esac
 
 echo ""

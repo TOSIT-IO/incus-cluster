@@ -17,8 +17,12 @@ storage:
   name: tdp
   dir: "./pool"
 # directory to write ansible hosts file and ssh key
-generate_ansible_inventory: true
-ansible_dir: "../tdp-getting-started"
+ansible:
+  enabled: false
+  inventory: "./inventory/hosts.ini"
+ssh:
+  enabled: true
+  path: "./data/incus_key"
 hosts:
   # role is used for default name ($role-[0-$quantity])
   # and default group
