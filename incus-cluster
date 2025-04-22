@@ -5,9 +5,28 @@ error(){
     exit 1;
 }
 
+usage() {
+    echo "Usage: $0 <action> [config_file]"
+    echo 'Actions:'
+    echo -e 'help\t\tPrint this usage'
+    echo -e 'init\t\tInit incus project, network, storage, profiles'
+    echo -e 'list\t\tList VMs'
+    echo -e 'up\t\tInit then launch VMs'
+    echo -e 'start\t\tStart VMs'
+    echo -e 'stop\t\tStop VMs'
+    echo -e 'delete\t\tDelete VMs and purge project, network, storage, profiles'
+    echo -e "reset\t\t'delete' & 'up'"
+}
+
+# print usage first if requested
+if [[ "$1" == "help" ]]; then
+    usage
+    exit 0
+fi
+
 if ! incus info > /dev/null ; then
     echo "Incus is not properly working. Exiting..."
-    exit 1;
+    exit 1
 fi
 
 if command -v yq &>/dev/null; then
@@ -55,7 +74,9 @@ if [[ -z "${config_file}" ]]; then
 fi
 
 if [[ ! -f ${config_file} ]]; then
-    error "Config file (${config_file}) not found. Quitting…"
+    echo "Config file (${config_file}) not found. Create it locally or set specific file as parameter" >&2
+    usage
+    exit 1
 fi
 
 parseconf(){
@@ -365,21 +386,8 @@ delete(){
     fi
 }
 
-usage() {
-    echo "Usage: $0 [action] [config_file]"
-    echo 'Actions:'
-    echo -e 'help\t\tPrint this usage'
-    echo -e 'init\t\tInit incus project, network, storage, profiles'
-    echo -e 'list\t\tList VMs'
-    echo -e 'up\t\tInit then launch VMs'
-    echo -e 'start\t\tStart VMs'
-    echo -e 'stop\t\tStop VMs'
-    echo -e 'delete\t\tDelete VMs and purge project, network, storage, profiles'
-    echo -e "reset\t\t'delete' & 'up'"
-}
 
 case "$1" in
-    help) usage; exit 0;;
     init) init;;
     list) incus list;;
     up) up;;
