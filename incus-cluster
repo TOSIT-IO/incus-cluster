@@ -280,7 +280,7 @@ up() {
                     #Append host to group multiline string array
                     groups[$g]="${groups[$g]}\n$name"
                 done;
-                echo "$name ansible_ssh_host=$name.$domain ansible_ssh_user='$admin_user' domain=$domain" >> ${ansible_inventory}.tmp
+                echo "$name ansible_ssh_host=$name.$domain ansible_ssh_user='$admin_user' domain=$domain" >> ${inventory_file}.tmp
             fi
             hosts_list+=("${name}")
             # launch host with following configuration

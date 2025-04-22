@@ -15,7 +15,7 @@ storage:
   # skip network creation if false
   manage: true
   name: tdp
-  dir: "./pool"
+  dir: "./data/pool"
 # directory to write ansible hosts file and ssh key
 ansible:
   enabled: false
