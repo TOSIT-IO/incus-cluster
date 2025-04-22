@@ -354,6 +354,17 @@ action() {
     done
 }
 
+delete(){
+    action delete --force;
+    if [[ "${storage_manage}" == "true" ]]; then
+        incus storage delete $storage
+    fi
+    if [[ "${network_manage}" == "true" ]]; then
+        incus profile device remove default enp5s0
+        incus network delete $network
+    fi
+}
+
 usage() {
     echo "Usage: $0 [action] [config_file]"
     echo 'Actions:'
@@ -364,23 +375,17 @@ usage() {
     echo -e 'start\t\tStart VMs'
     echo -e 'stop\t\tStop VMs'
     echo -e 'delete\t\tDelete VMs and purge project, network, storage, profiles'
+    echo -e "reset\t\t'delete' & 'up'"
 }
 
 case "$1" in
     help) usage; exit 0;;
-    init) init ;;
+    init) init;;
     list) incus list;;
-    up) up ;;
-    start) action start ;;
-    stop) action stop ;;
-    delete) action delete --force;
-        if [[ "${storage_manage}" == "true" ]]; then
-            incus storage delete $storage
-        fi
-        if [[ "${network_manage}" == "true" ]]; then
-            incus profile device remove default enp5s0
-            incus network delete $network
-        fi
-    ;;
+    up) up;;
+    start) action start;;
+    stop) action stop;;
+    delete) delete;;
+    reset) delete; up;;
     *) usage; exit 1;;
 esac

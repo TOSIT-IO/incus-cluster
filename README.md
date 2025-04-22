@@ -7,6 +7,14 @@ Manage a cluster with Incus.
 - incus
 - openssh
 
+## Install
+
+Add incus-cluster into your path
+In .bashrc/.zshrc:
+```
+export PATH="$PATH:/path/to/here/"
+```
+
 ## Config file
 
 In your project dir, create incus.yml file
