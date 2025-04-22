@@ -18,11 +18,11 @@ storage:
   dir: "./data/pool"
 # directory to write ansible hosts file and ssh key
 ansible:
-  enabled: false
+  enabled: true 
   inventory: "./inventory/hosts.ini"
 ssh:
   enabled: true
-  path: "./data/incus_key"
+  path: "./files/tdp-rsa"
 hosts:
   # role is used for default name ($role-[0-$quantity])
   # and default group

@@ -9,9 +9,15 @@ Manage a cluster with Incus.
 
 ## Install
 
-Add incus-cluster into your path
-In .bashrc/.zshrc:
+Symlink incus-cluster into .local/bin
+
+```bash
+ln -s /path/to/here/incus-cluster ${HOME}/.local/bin
 ```
+
+Alternatively, add incus-cluster dir into your path
+In .bashrc/.zshrc:
+```sh
 export PATH="$PATH:/path/to/here/"
 ```
 
