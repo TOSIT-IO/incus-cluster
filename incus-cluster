@@ -128,7 +128,7 @@ fi
 
 incus project switch $project >/dev/null
 
-get_hostvar() {
+set_hostvars() {
     hostname=$(parseconf ".hosts[$f].hostname")
     quantity=$(parseconf ".hosts[$f].quantity" 1)
     role=$(parseconf ".hosts[$f].role")
@@ -149,6 +149,8 @@ get_name() {
 }
 
 init() {
+    # Exit at first error
+    set -e
     if [[ "${ansible_enabled}" == "true" ]]; then
         if [[ "${ssh_enabled}" == "false" ]]; then
             error "'.ssh.enabled' cannot be false when 'ansible.enabled' is true"
@@ -158,11 +160,11 @@ init() {
     if [[ "${ssh_enabled}" == "true" && ! -f ${ssh_key} ]]; then
         mkdir -p $(dirname "${ssh_key}")
         echo "undetected ssh key. create it at ${ssh_key}"
-        yes | ssh-keygen -t rsa -b 4096 -f ${ssh_key} -n ''
+        yes | ssh-keygen -t ed25519 -f ${ssh_key} -n ''
     fi
     if [[ "${network_manage}" == "true" ]]; then
         domain=$(parseconf '.network.domain' "$project")
-        cidr=$(parseconf '.network.cidr'  '10.10.10.1/24')
+        cidr=$(parseconf '.network.cidr'  '10.0.0.1/24')
         if ! incus network show $network &>/dev/null; then
             incus network create $network "ipv4.address=${cidr}" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
             if systemctl is-active --quiet systemd-resolved; then
@@ -186,9 +188,10 @@ init() {
         # unless storage exists
         if ! incus storage show $storage &>/dev/null; then
             #create local dir storage
-            storage_dir=`realpath $(parseconf '.storage.dir' './data/pool')`
+            storage_dir=$(parseconf '.storage.dir' './data/pool')
             mkdir -p $storage_dir
-            incus storage create ${storage} dir source=${storage_dir}
+            # realpath can be called if and only if path exists
+            incus storage create ${storage} dir "source=$(realpath ${storage_dir})"
         fi
     fi
     # Default profiles (default)
@@ -256,7 +259,7 @@ up() {
     fi
     #foreach hosts_num
     for f in $(seq 0 $((hosts_num - 1))); do
-        get_hostvar
+        set_hostvars
         # parse config file to get host config
         memory=$(parseconf ".hosts[$f].memory // 512")
         cpu=$(parseconf ".hosts[$f].cpus // 1")
@@ -366,7 +369,7 @@ EOF
 action() {
     for f in $(seq 0 $((hosts_num - 1))); do
         # parse config file to get host config
-        get_hostvar
+        set_hostvars
         #echo hostname $hostname mem $memory cpu $cpu quantity $quantity role $role gr $(IFS=','; echo "${gr[*]}"; unset IFS)
         for i in $(seq 1 $quantity); do
             get_name
