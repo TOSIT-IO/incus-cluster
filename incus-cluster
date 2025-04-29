@@ -159,7 +159,7 @@ init() {
     fi
     if [[ "${ssh_enabled}" == "true" && ! -f ${ssh_key} ]]; then
         mkdir -p $(dirname "${ssh_key}")
-        echo "undetected ssh key. create it at ${ssh_key}"
+        echo "Undetected ssh key. create it at ${ssh_key}"
         yes | ssh-keygen -t ed25519 -f ${ssh_key} -n ''
     fi
     if [[ "${network_manage}" == "true" ]]; then
@@ -169,6 +169,13 @@ init() {
             incus network create $network "ipv4.address=${cidr}" dns.domain=$domain ipv6.nat=false ipv6.address=none ipv4.nat=true
             if systemctl is-active --quiet systemd-resolved; then
                 dnsip="${cidr%%/*}"
+                echo "Generate resolvectl configuration files. Requires sudo"
+                sudo mkdir -p /etc/systemd/resolve.conf.d
+                sudo tee /etc/systemd/resolved.conf.d/10-${network}.conf > /dev/null <<-EOF
+[Resolve]
+DNS=${dnsip}
+Domains=~${domain}
+EOF
                 echo "systemd-resolved is active. Configure DNS (${dnsip})"
                 sudo resolvectl dns $network "${dnsip}"
                 sudo resolvectl domain $network "~${domain}"
@@ -386,17 +393,18 @@ delete(){
     if [[ "${network_manage}" == "true" ]]; then
         incus profile device remove default enp5s0
         incus network delete $network
+        sudo rm /etc/systemd/resolved.conf.d/10-${network}.conf
     fi
 }
 
 
 case "$1" in
     init) init;;
-    list) incus list;;
     up) up;;
     start) action start;;
     stop) action stop;;
     delete) delete;;
     reset) delete; up;;
+    list|info|top|webui) incus "$1";;
     *) usage; exit 1;;
 esac
