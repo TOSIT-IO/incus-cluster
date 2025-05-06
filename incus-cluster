@@ -6,7 +6,7 @@ error(){
 }
 
 usage() {
-    echo "Usage: $0 <action> [config_file]"
+    echo "Usage: $0 [-c <config_file>] <action> [params]"
     echo 'Actions:'
     echo -e 'help\t\tPrint this usage'
     echo -e 'init\t\tInit incus project, network, storage, profiles'
@@ -14,14 +14,42 @@ usage() {
     echo -e 'up\t\tInit then launch VMs'
     echo -e 'start\t\tStart VMs'
     echo -e 'stop\t\tStop VMs'
+    echo -e 'snapshot\tcreate <name> | delete <name> | restore <name> | list snapshots'
     echo -e 'delete\t\tDelete VMs and purge project, network, storage, profiles'
     echo -e "reset\t\t'delete' & 'up'"
+    echo -e "top\t\tPrint top of projects node"
 }
 
+config_file=./incus.yml
+while getopts ":c:h" opt; do
+  case $opt in
+    c)
+      config_file="$OPTARG"
+      ;;
+    h)
+      usage ; exit 0;;
+    \?)
+      error "Invalid option: -$OPTARG"
+      ;;
+    :)
+      error "Option -$OPTARG requires an argument."
+      ;;
+  esac
+done
+shift $((OPTIND -1))
+action="$1"
+shift 1
+
 # print usage first if requested
-if [[ "$1" == "help" ]]; then
+if [[ "$action" == "help" ]]; then
     usage
     exit 0
+fi
+
+if [[ ! -f ${config_file} ]]; then
+    echo "Config file (${config_file}) not found. Create it or set it file as parameter" >&2
+    usage
+    exit 1
 fi
 
 if ! incus info > /dev/null ; then
@@ -66,17 +94,6 @@ else
     else
         error "Do not install. Quitting..."
     fi
-fi
-
-config_file=$2
-if [[ -z "${config_file}" ]]; then
-    config_file='./incus.yml'
-fi
-
-if [[ ! -f ${config_file} ]]; then
-    echo "Config file (${config_file}) not found. Create it locally or set specific file as parameter" >&2
-    usage
-    exit 1
 fi
 
 parseconf(){
@@ -132,6 +149,13 @@ set_hostvars() {
     hostname=$(parseconf ".hosts[$f].hostname")
     quantity=$(parseconf ".hosts[$f].quantity" 1)
     role=$(parseconf ".hosts[$f].role")
+    type=$(parseconf ".hosts[$f].type" "vm")
+    if [[ "$type" != "container" && "$type" != "vm" ]]; then
+        error "Incorrect type for '$hostname': '$type' (must be 'vm' or 'container')"
+    fi
+    memory=$(parseconf ".hosts[$f].memory" 512)
+    cpu=$(parseconf ".hosts[$f].cpus" 1)
+    root_size=$(parseconf ".hosts[$f].root_size" "40GB")
 }
 
 get_name() {
@@ -267,10 +291,6 @@ up() {
     #foreach hosts_num
     for f in $(seq 0 $((hosts_num - 1))); do
         set_hostvars
-        # parse config file to get host config
-        memory=$(parseconf ".hosts[$f].memory // 512")
-        cpu=$(parseconf ".hosts[$f].cpus // 1")
-        root_size=$(parseconf ".hosts[$f].root_size // \"40GB\"")
         if yq -e ".hosts[$f].groups" ${config_file} &> /dev/null; then
             mapfile -t gr < <(parseconf ".hosts[$f].groups[]" 2>/dev/null)
         else
@@ -294,7 +314,11 @@ up() {
             fi
             hosts_list+=("${name}")
             # launch host with following configuration
-            incus launch images:$image $name --vm <<-EOF
+            param_type=""
+            if [[ "$type" == "vm" ]]; then
+                param_type="--vm"
+            fi
+            incus launch images:$image $name $param_type <<-EOF
 architecture: x86_64
 config:
   limits.memory: ${memory}MB
@@ -397,14 +421,45 @@ delete(){
     fi
 }
 
+snapshot(){
+    subaction=$1
+    if [[ -z "$subaction" ]]; then
+        error "snapshot requires an 'action' (create | list | delete | restore) parameter"
+    fi
+    if [[ "$subaction" == "list" ]]; then
+        for f in $(seq 0 $((hosts_num - 1))); do
+            set_hostvars
+            for i in $(seq 1 $quantity); do
+                get_name
+                echo "$name:"
+                incus snapshot $subaction "$name"
+            done
+        done
+    elif [[ "$subaction" == "create" || "$subaction" == "delete" || "$subaction" == "restore" ]]; then
+        snapname=$2
+        if [[ -z "$snapname" ]]; then
+            error "snapshot $subaction requires a 'name' additional parameter"
+        fi
+        for f in $(seq 0 $((hosts_num - 1))); do
+            set_hostvars
+            for i in $(seq 1 $quantity); do
+                get_name
+                incus snapshot $subaction "$name" "${snapname}"
+            done
+        done
+    else
+        error "Incorrect parameter '$subaction' for 'snapshot' action";
+    fi
+}
 
-case "$1" in
+case "$action" in
     init) init;;
     up) up;;
+    snapshot) snapshot "$@";;
     start) action start;;
     stop) action stop;;
     delete) delete;;
     reset) delete; up;;
-    list|info|top|webui) incus "$1";;
+    list|info|top|webui) incus "$action";;
     *) usage; exit 1;;
 esac
