@@ -28,6 +28,9 @@ hosts:
   # and default group
   - role: edge
     cpus: 2
+    groups:
+      - edge
+      - edge%d
     memory: 4096
     # number of instance to create
     quantity: 1
